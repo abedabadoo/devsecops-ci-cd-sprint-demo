@@ -45,22 +45,36 @@ jobs:
         with:
           args: detect --source . --redact --report-format json --report-path gitleaks-report.json
 
-      # ---------- SAST (Semgrep) ----------
-      - name: Semgrep (SAST) – ERROR only
-        uses: semgrep/semgrep-action@v1
-        with:
-          config: "p/ci"
-          generateSarif: true
-          semgrepArgs: "--severity ERROR"
-      
+      # ---------- SAST (Semgrep) - deterministic CLI run ----------
+      - name: Install Semgrep
+        run: python3 -m pip install --upgrade pip semgrep
+
+      - name: Semgrep (SAST) - SARIF output (ERROR gate)
+        run: |
+          semgrep --version
+          semgrep --config "p/ci" --severity ERROR --sarif --output semgrep.sarif .
+
+      - name: Semgrep (SAST) - JSON report artifact
+        if: always()
+        run: |
+          semgrep --config "p/ci" --severity ERROR --json --output semgrep-report.json . || true
+
+      # ---------- Debug: show generated files ----------
+      - name: List workspace files (debug)
+        if: always()
+        run: |
+          ls -la
+          echo "----"
+          find . -maxdepth 2 -type f -name "*.sarif" -o -name "gitleaks-report.json" -o -name "semgrep-report.json" -o -name "trivy-*-report.txt" || true
+
       # ---------- Upload SARIF to GitHub Security ----------
       - name: Upload Semgrep SARIF to GitHub Security tab
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: semgrep.sarif
 
-      # ---------- Trivy filesystem scan ----------
+      # ---------- Trivy filesystem scan (High/Critical gate) ----------
       - name: Trivy filesystem scan (High/Critical gate)
         uses: aquasecurity/trivy-action@0.20.0
         with:
@@ -75,7 +89,7 @@ jobs:
       - name: Build Docker image
         run: docker build -t hello-devsecops:ci .
 
-      # ---------- Trivy image scan ----------
+      # ---------- Trivy image scan (High/Critical gate) ----------
       - name: Trivy image scan (High/Critical gate)
         uses: aquasecurity/trivy-action@0.20.0
         with:
@@ -85,14 +99,16 @@ jobs:
           severity: HIGH,CRITICAL
           output: trivy-image-report.txt
 
-      # ---------- Upload artifacts ----------
+      # ---------- Upload reports ----------
       - name: Upload scan reports as artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-reports
+          if-no-files-found: ignore
           path: |
             gitleaks-report.json
             semgrep.sarif
+            semgrep-report.json
             trivy-fs-report.txt
             trivy-image-report.txt
