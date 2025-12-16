@@ -14,6 +14,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # ---------- Checkout ----------
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -33,60 +34,58 @@ jobs:
         working-directory: app
         run: npm test
 
-      # ---------- Dependency scanning (gate High/Critical) ----------
+      # ---------- Dependency scanning (High/Critical gate) ----------
       - name: Dependency audit (High/Critical gate)
         working-directory: app
-        run: |
-          # npm exits non-zero based on findings; audit-level=high gates High/Critical
-          npm audit --audit-level=high
+        run: npm audit --audit-level=high
 
       # ---------- Secrets scanning ----------
       - name: Gitleaks (secrets scan)
         uses: gitleaks/gitleaks-action@v2
         with:
-          args: "detect --source . --redact --report-format json --report-path gitleaks-report.json"
+          args: detect --source . --redact --report-format json --report-path gitleaks-report.json
 
-      # ---------- SAST ----------
-      - name: Semgrep (SAST) - fail only on ERROR
+      # ---------- SAST (Semgrep) ----------
+      - name: Semgrep (SAST) – ERROR only
         uses: semgrep/semgrep-action@v1
         with:
           config: "p/ci"
-          generateSarif: "true"
-          semgrepArgs: "--severity ERROR --json --output semgrep-report.json"
-        env:
-          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
-
+          generateSarif: true
+          semgrepArgs: "--severity ERROR"
+      
+      # ---------- Upload SARIF to GitHub Security ----------
       - name: Upload Semgrep SARIF to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
         if: always()
+        uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: semgrep.sarif
 
+      # ---------- Trivy filesystem scan ----------
       - name: Trivy filesystem scan (High/Critical gate)
         uses: aquasecurity/trivy-action@0.20.0
         with:
-          scan-type: "fs"
-          scan-ref: "."
-          format: "table"
+          scan-type: fs
+          scan-ref: .
+          format: table
           exit-code: "1"
-          severity: "HIGH,CRITICAL"
-          output: "trivy-fs-report.txt"
+          severity: HIGH,CRITICAL
+          output: trivy-fs-report.txt
 
-      # ---------- Container build + scan ----------
+      # ---------- Container build ----------
       - name: Build Docker image
-        run: |
-          docker build -t hello-devsecops:ci .
+        run: docker build -t hello-devsecops:ci .
 
+      # ---------- Trivy image scan ----------
       - name: Trivy image scan (High/Critical gate)
         uses: aquasecurity/trivy-action@0.20.0
         with:
-          image-ref: "hello-devsecops:ci"
-          format: "table"
+          image-ref: hello-devsecops:ci
+          format: table
           exit-code: "1"
-          severity: "HIGH,CRITICAL"
-          output: "trivy-image-report.txt"
+          severity: HIGH,CRITICAL
+          output: trivy-image-report.txt
 
-      # ---------- Upload reports ----------
+      # ---------- Upload artifacts ----------
       - name: Upload scan reports as artifacts
         if: always()
         uses: actions/upload-artifact@v4
@@ -94,8 +93,6 @@ jobs:
           name: security-reports
           path: |
             gitleaks-report.json
-            semgrep-report.json
             semgrep.sarif
-            trivy-image-report.txt
             trivy-fs-report.txt
-
+            trivy-image-report.txt
