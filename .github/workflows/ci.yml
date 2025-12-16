@@ -44,7 +44,7 @@ jobs:
       - name: Gitleaks (secrets scan)
         uses: gitleaks/gitleaks-action@v2
         with:
-          args: "--no-git --redact --report-format json --report-path gitleaks-report.json"
+          args: "detect --source . --redact --report-format json --report-path gitleaks-report.json"
 
       # ---------- SAST ----------
       - name: Semgrep (SAST) - fail only on ERROR
@@ -61,6 +61,16 @@ jobs:
         if: always()
         with:
           sarif_file: semgrep.sarif
+
+      - name: Trivy filesystem scan (High/Critical gate)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          format: "table"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
+          output: "trivy-fs-report.txt"
 
       # ---------- Container build + scan ----------
       - name: Build Docker image
@@ -87,3 +97,5 @@ jobs:
             semgrep-report.json
             semgrep.sarif
             trivy-image-report.txt
+            trivy-fs-report.txt
+
