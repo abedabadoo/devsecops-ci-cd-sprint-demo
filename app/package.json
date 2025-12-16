@@ -1,17 +1,21 @@
 {
-  "name": "hello-devsecops",
-  "version": "1.0.0",
-  "main": "server.js",
-  "type": "module",
-  "scripts": {
-    "start": "node server.js",
-    "test": "node -e \"console.log('ok')\""
-  },
-  "dependencies": {
-    "express": "^4.19.2"
-  },
-  "overrides": {
-    "cross-spawn": "^7.0.5",
-    "glob": "^10.5.0"
-  }
+    "name": "hello-devsecops",
+    "version": "1.0.0",
+    "private": true,
+    "type": "module",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "test": "node -e \"console.log('ok')\""
+    },
+    "engines": {
+        "node": ">=20"
+    },
+    "dependencies": {
+        "express": "4.19.2"
+    },
+    "overrides": {
+        "cross-spawn": "^7.0.5",
+        "glob": "^10.5.0"
+    }
 }
