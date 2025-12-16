@@ -1,0 +1,89 @@
+name: DevSecOps CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ---------- App build/test ----------
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install deps
+        working-directory: app
+        run: npm ci
+
+      - name: Run tests
+        working-directory: app
+        run: npm test
+
+      # ---------- Dependency scanning (gate High/Critical) ----------
+      - name: Dependency audit (High/Critical gate)
+        working-directory: app
+        run: |
+          # npm exits non-zero based on findings; audit-level=high gates High/Critical
+          npm audit --audit-level=high
+
+      # ---------- Secrets scanning ----------
+      - name: Gitleaks (secrets scan)
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: "--no-git --redact --report-format json --report-path gitleaks-report.json"
+
+      # ---------- SAST ----------
+      - name: Semgrep (SAST) - fail only on ERROR
+        uses: semgrep/semgrep-action@v1
+        with:
+          config: "p/ci"
+          generateSarif: "true"
+          semgrepArgs: "--severity ERROR --json --output semgrep-report.json"
+        env:
+          SEMGREP_APP_TOKEN: ${{ secrets.SEMGREP_APP_TOKEN }}
+
+      - name: Upload Semgrep SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: semgrep.sarif
+
+      # ---------- Container build + scan ----------
+      - name: Build Docker image
+        run: |
+          docker build -t hello-devsecops:ci .
+
+      - name: Trivy image scan (High/Critical gate)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: "hello-devsecops:ci"
+          format: "table"
+          exit-code: "1"
+          severity: "HIGH,CRITICAL"
+          output: "trivy-image-report.txt"
+
+      # ---------- Upload reports ----------
+      - name: Upload scan reports as artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            gitleaks-report.json
+            semgrep-report.json
+            semgrep.sarif
+            trivy-image-report.txt

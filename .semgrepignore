@@ -1,0 +1,2 @@
+# Ignore dependencies/vendor-like directories
+app/node_modules/
