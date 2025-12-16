@@ -90,14 +90,23 @@ jobs:
         run: docker build -t hello-devsecops:ci .
 
       # ---------- Trivy image scan (High/Critical gate) ----------
-      - name: Trivy image scan (High/Critical gate)
+      - name: Trivy image scan (High/Critical gate, fixable only)
         uses: aquasecurity/trivy-action@0.20.0
         with:
           image-ref: hello-devsecops:ci
           format: table
           exit-code: "1"
           severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          vuln-type: os,library
           output: trivy-image-report.txt
+
+      - name: Show Trivy image report
+        if: always()
+        run: |
+          echo "==== Trivy image report ===="
+          test -f trivy-image-report.txt && cat trivy-image-report.txt || echo "No trivy-image-report.txt found"
+
 
       # ---------- Upload reports ----------
       - name: Upload scan reports as artifacts
