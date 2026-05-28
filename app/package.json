@@ -12,7 +12,8 @@
         "node": ">=20"
     },
     "dependencies": {
-        "express": "4.22.1"
+        "express": "4.22.1",
+        "lodash": "4.17.20"
     },
     "overrides": {
         "cross-spawn": "^7.0.5",
